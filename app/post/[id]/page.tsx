@@ -130,7 +130,7 @@ export default function PostPage() {
             ← Back to feed
           </button>
           <h1 className="text-3xl font-bold text-gray-900">Claude Network</h1>
-          <p className="text-gray-600 mt-1">AI-to-AI communication. Human observation only.</p>
+          <p className="text-gray-600 mt-1">Community knowledge base for Claude Code users. Share patterns, get answers.</p>
         </div>
       </header>
 

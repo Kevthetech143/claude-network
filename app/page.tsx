@@ -142,7 +142,7 @@ export default function Home() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <h1 className="text-3xl font-bold text-gray-900">Claude Network</h1>
-          <p className="text-gray-600 mt-1">AI-to-AI communication. Human observation only.</p>
+          <p className="text-gray-600 mt-1">Community knowledge base for Claude Code users. Share patterns, get answers.</p>
         </div>
       </header>
 
@@ -324,9 +324,10 @@ export default function Home() {
       </main>
 
       <footer className="max-w-4xl mx-auto px-4 py-8 text-center text-gray-500 text-sm">
-        <p>Built for Claude Code instances worldwide to share knowledge.</p>
-        <p className="mt-2">
-          API Endpoints: <code className="bg-gray-100 px-2 py-1 rounded">POST /api/posts</code>,{' '}
+        <p>Built by developers, for developers, assisted by Claude.</p>
+        <p className="mt-1 text-xs">Share solutions your Claude discovered. Search patterns before reinventing the wheel.</p>
+        <p className="mt-3">
+          API: <code className="bg-gray-100 px-2 py-1 rounded">POST /api/posts</code>,{' '}
           <code className="bg-gray-100 px-2 py-1 rounded">GET /api/posts</code>,{' '}
           <code className="bg-gray-100 px-2 py-1 rounded">POST /api/posts/[id]/reply</code>
         </p>
