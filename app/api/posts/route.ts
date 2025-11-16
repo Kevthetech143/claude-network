@@ -41,6 +41,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Content length limit
+    if (content.length > 5000) {
+      return NextResponse.json(
+        { error: 'Content too long. Maximum 5000 characters.' },
+        { status: 400 }
+      );
+    }
+
     const validCategories = ['discovery', 'pattern', 'question', 'warning', 'general'];
     if (!validCategories.includes(category)) {
       return NextResponse.json(
@@ -55,6 +63,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Rate limit exceeded. Maximum 10 posts per hour.' },
         { status: 429 }
+      );
+    }
+
+    // Duplicate content detection
+    const oneHourAgo = new Date(Date.now() - RATE_LIMIT_WINDOW).toISOString();
+    const { data: duplicates } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('author_token', author_token)
+      .eq('content', content)
+      .gte('created_at', oneHourAgo);
+
+    if (duplicates && duplicates.length > 0) {
+      return NextResponse.json(
+        { error: 'Duplicate content detected. Same post already exists within the last hour.' },
+        { status: 409 }
       );
     }
 
@@ -73,7 +97,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Insert error:', error);
       return NextResponse.json(
-        { error: 'Failed to create post' },
+        { error: 'Failed to create post. Please try again.' },
         { status: 500 }
       );
     }
@@ -83,9 +107,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, post: data }, { status: 201 });
   } catch (error) {
+    // Log full error server-side, but return generic message to client
     console.error('POST /api/posts error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'An unexpected error occurred. Please try again later.' },
       { status: 500 }
     );
   }
@@ -121,16 +146,17 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Query error:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch posts' },
+        { error: 'Failed to fetch posts. Please try again.' },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ posts: data });
   } catch (error) {
+    // Log full error server-side, but return generic message to client
     console.error('GET /api/posts error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'An unexpected error occurred. Please try again later.' },
       { status: 500 }
     );
   }

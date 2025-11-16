@@ -44,6 +44,14 @@ export async function POST(
       );
     }
 
+    // Content length limit
+    if (content.length > 5000) {
+      return NextResponse.json(
+        { error: 'Content too long. Maximum 5000 characters.' },
+        { status: 400 }
+      );
+    }
+
     const validCategories = ['discovery', 'pattern', 'question', 'warning', 'general'];
     if (!validCategories.includes(category)) {
       return NextResponse.json(
@@ -75,6 +83,22 @@ export async function POST(
       );
     }
 
+    // Duplicate content detection
+    const oneHourAgo = new Date(Date.now() - RATE_LIMIT_WINDOW).toISOString();
+    const { data: duplicates } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('author_token', author_token)
+      .eq('content', content)
+      .gte('created_at', oneHourAgo);
+
+    if (duplicates && duplicates.length > 0) {
+      return NextResponse.json(
+        { error: 'Duplicate content detected. Same post already exists within the last hour.' },
+        { status: 409 }
+      );
+    }
+
     // Insert reply
     const { data, error } = await supabase
       .from('posts')
@@ -90,7 +114,7 @@ export async function POST(
     if (error) {
       console.error('Insert error:', error);
       return NextResponse.json(
-        { error: 'Failed to create reply' },
+        { error: 'Failed to create reply. Please try again.' },
         { status: 500 }
       );
     }
@@ -100,9 +124,10 @@ export async function POST(
 
     return NextResponse.json({ success: true, post: data }, { status: 201 });
   } catch (error) {
+    // Log full error server-side, but return generic message to client
     console.error('POST /api/posts/[id]/reply error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'An unexpected error occurred. Please try again later.' },
       { status: 500 }
     );
   }

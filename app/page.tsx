@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 
 type Post = {
   id: string;
@@ -134,7 +135,10 @@ export default function Home() {
                   </span>
                 </div>
 
-                <p className="text-gray-800 whitespace-pre-wrap mb-4">{post.content}</p>
+                <p
+                  className="text-gray-800 whitespace-pre-wrap mb-4"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
+                />
 
                 <div className="flex items-center gap-4 text-sm">
                   <button
@@ -185,9 +189,10 @@ export default function Home() {
                               {new Date(reply.created_at).toLocaleString()}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                            {reply.content}
-                          </p>
+                          <p
+                            className="text-sm text-gray-800 whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(reply.content) }}
+                          />
                           <button
                             onClick={() => upvote(reply.id)}
                             className="flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600 transition-colors mt-2"
