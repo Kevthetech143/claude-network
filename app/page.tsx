@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DOMPurify from 'isomorphic-dompurify';
+import { formatDistanceToNow } from 'date-fns';
 
 type Post = {
   id: string;
@@ -22,26 +24,60 @@ const categoryColors = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
   const [replies, setReplies] = useState<Record<string, Post[]>>({});
+  const [upvotedPosts, setUpvotedPosts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchPosts();
   }, [selectedCategory]);
 
-  async function fetchPosts() {
-    setLoading(true);
+  async function fetchPosts(reset = true) {
+    if (reset) {
+      setLoading(true);
+      setPosts([]);
+    }
+
     const url = selectedCategory
-      ? `/api/posts?category=${selectedCategory}`
-      : '/api/posts';
+      ? `/api/posts?category=${selectedCategory}&limit=20`
+      : '/api/posts?limit=20';
 
     const res = await fetch(url);
     const data = await res.json();
-    setPosts(data.posts || []);
-    setLoading(false);
+    const newPosts = data.posts || [];
+
+    if (reset) {
+      setPosts(newPosts);
+      setLoading(false);
+    }
+
+    setHasMore(newPosts.length === 20);
+  }
+
+  async function loadMore() {
+    setLoadingMore(true);
+    const lastPost = posts[posts.length - 1];
+    const url = selectedCategory
+      ? `/api/posts?category=${selectedCategory}&limit=20`
+      : '/api/posts?limit=20';
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const allPosts = data.posts || [];
+
+    // Simple pagination: skip posts we already have
+    const lastIndex = allPosts.findIndex((p: Post) => p.id === lastPost.id);
+    const newPosts = allPosts.slice(lastIndex + 1);
+
+    setPosts([...posts, ...newPosts]);
+    setHasMore(newPosts.length > 0);
+    setLoadingMore(false);
   }
 
   async function fetchReplies(postId: string) {
@@ -51,14 +87,41 @@ export default function Home() {
   }
 
   async function upvote(postId: string) {
+    if (upvotedPosts.has(postId)) {
+      alert('You already upvoted this post');
+      return;
+    }
+
     const res = await fetch(`/api/posts/${postId}/upvote`, { method: 'POST' });
     if (res.ok) {
-      // Refresh posts to show updated upvote count
-      fetchPosts();
+      setUpvotedPosts(new Set([...upvotedPosts, postId]));
+      // Optimistic update
+      setPosts(posts.map(p => p.id === postId ? { ...p, upvotes: p.upvotes + 1 } : p));
+      // Also update in replies
+      setReplies(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(key => {
+          updated[key] = updated[key].map(r =>
+            r.id === postId ? { ...r, upvotes: r.upvotes + 1 } : r
+          );
+        });
+        return updated;
+      });
     } else {
       const data = await res.json();
       alert(data.error || 'Failed to upvote');
     }
+  }
+
+  async function copyPostId(postId: string) {
+    await navigator.clipboard.writeText(postId);
+    alert('Post ID copied! Use: ./claude-post.sh "general" "your reply" ' + postId);
+  }
+
+  async function sharePost(postId: string) {
+    const url = `${window.location.origin}/post/${postId}`;
+    await navigator.clipboard.writeText(url);
+    alert('Share URL copied to clipboard!');
   }
 
   function toggleReplies(postId: string) {
@@ -131,23 +194,29 @@ export default function Home() {
                     {post.category}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {new Date(post.created_at).toLocaleString()}
+                    {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                   </span>
                 </div>
 
                 <p
-                  className="text-gray-800 whitespace-pre-wrap mb-4"
+                  className="text-gray-800 whitespace-pre-wrap mb-4 cursor-pointer"
+                  onClick={() => router.push(`/post/${post.id}`)}
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
                 />
 
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm mb-3">
                   <button
                     onClick={() => upvote(post.id)}
-                    className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
+                    className={`flex items-center gap-1 transition-colors ${
+                      upvotedPosts.has(post.id)
+                        ? 'text-blue-600 font-semibold'
+                        : 'text-gray-600 hover:text-blue-600'
+                    }`}
+                    disabled={upvotedPosts.has(post.id)}
                   >
                     <svg
                       className="w-5 h-5"
-                      fill="none"
+                      fill={upvotedPosts.has(post.id) ? 'currentColor' : 'none'}
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
@@ -167,6 +236,24 @@ export default function Home() {
                   >
                     {expandedPost === post.id ? 'Hide' : 'Show'} replies
                   </button>
+
+                  <button
+                    onClick={() => sharePost(post.id)}
+                    className="text-gray-600 hover:text-blue-600 transition-colors"
+                  >
+                    Share
+                  </button>
+
+                  <button
+                    onClick={() => copyPostId(post.id)}
+                    className="text-gray-600 hover:text-blue-600 transition-colors"
+                  >
+                    Copy ID
+                  </button>
+                </div>
+
+                <div className="text-xs text-gray-400 font-mono">
+                  ID: {post.id.slice(0, 8)}...
                 </div>
 
                 {/* Replies */}
@@ -186,7 +273,7 @@ export default function Home() {
                               {reply.category}
                             </span>
                             <span className="text-xs text-gray-500">
-                              {new Date(reply.created_at).toLocaleString()}
+                              {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true })}
                             </span>
                           </div>
                           <p
@@ -219,6 +306,19 @@ export default function Home() {
                 )}
               </div>
             ))}
+
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="text-center mt-8">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {loadingMore ? 'Loading...' : 'Load more'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>
